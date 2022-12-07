@@ -32,6 +32,23 @@
 	cursor: pointer;
 }
 
+.monaco-editor .inline-folded-count:before {
+	color: grey;
+	margin: 0.1em 0.2em 0 0.2em;
+	content: "⋯";
+	display: inline;
+	line-height: 1em;
+	cursor: pointer;
+}
+
+.monaco-editor .inline-folded-count {
+	color: grey;
+	margin: 0.1em 0.2em 0 0.2em;
+	display: inline;
+	line-height: 1em;
+	cursor: pointer;
+}
+
 .monaco-editor .folded-background {
 	background-color: var(--vscode-editor-foldBackground);
 }

@@ -6,7 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IModelDecorationOptions, IModelDecorationsChangeAccessor, MinimapPosition, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ModelDecorationInjectedTextOptions, ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IDecorationProvider } from 'vs/editor/contrib/folding/browser/foldingModel';
 import { localize } from 'vs/nls';
 import { editorSelectionBackground, iconForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
@@ -25,23 +25,21 @@ const foldedBackgroundMinimap = { color: themeColorFromId(foldBackground), posit
 
 export class FoldingDecorationProvider implements IDecorationProvider {
 
-	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
+	private static readonly COLLAPSED_VISUAL_DEFAULTS: IModelDecorationOptions = {
 		description: 'folding-collapsed-visual-decoration',
-		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, //NeverGrowsWhenTypingAtEdges within original commit
 		afterContentClassName: 'inline-folded',
-		isWholeLine: true,
-		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon),
-	});
-
-	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register({
-		description: 'folding-collapsed-highlighted-visual-decoration',
-		stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-		afterContentClassName: 'inline-folded',
-		className: 'folded-background',
-		minimap: foldedBackgroundMinimap,
 		isWholeLine: true,
 		firstLineDecorationClassName: ThemeIcon.asClassName(foldingCollapsedIcon)
-	});
+	};
+	private static readonly COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register(this.COLLAPSED_VISUAL_DEFAULTS);
+
+	private static readonly COLLAPSED_HIGHLIGHTED_DEFAULTS: IModelDecorationOptions = {
+		...this.COLLAPSED_VISUAL_DEFAULTS,
+		description: 'folding-collapsed-highlighted-visual-decoration',
+		className: 'folded-background',
+	};
+	private static readonly COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION = ModelDecorationOptions.register(this.COLLAPSED_HIGHLIGHTED_DEFAULTS);
 
 	private static readonly MANUALLY_COLLAPSED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		description: 'folding-manually-collapsed-visual-decoration',
@@ -123,9 +121,15 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 	constructor(private readonly editor: ICodeEditor) {
 	}
 
-	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean): IModelDecorationOptions {
+	getDecorationOption(isCollapsed: boolean, isHidden: boolean, isManual: boolean, lineCount?: number): IModelDecorationOptions {
+		const countDecoration = ModelDecorationInjectedTextOptions.from({ content: `(${lineCount} lines)`, inlineClassName: 'inline-folded-count' });
 		if (isHidden) { // is inside another collapsed region
-			return FoldingDecorationProvider.HIDDEN_RANGE_DECORATION;
+			return lineCount ?
+				ModelDecorationOptions.register({
+					...FoldingDecorationProvider.COLLAPSED_VISUAL_DEFAULTS,
+					after: countDecoration
+				}) :
+				FoldingDecorationProvider.HIDDEN_RANGE_DECORATION;
 		}
 		if (this.showFoldingControls === 'never') {
 			if (isCollapsed) {
@@ -134,6 +138,17 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 			return FoldingDecorationProvider.NO_CONTROLS_EXPANDED_RANGE_DECORATION;
 		}
 		if (isCollapsed) {
+			if (lineCount) {
+				return this.showFoldingHighlights ?
+					ModelDecorationOptions.register({
+						...FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_DEFAULTS,
+						after: countDecoration
+					}) :
+					ModelDecorationOptions.register({
+						...FoldingDecorationProvider.COLLAPSED_VISUAL_DEFAULTS,
+						after: countDecoration
+					});
+			}
 			return isManual ?
 				(this.showFoldingHighlights ? FoldingDecorationProvider.MANUALLY_COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.MANUALLY_COLLAPSED_VISUAL_DECORATION)
 				: (this.showFoldingHighlights ? FoldingDecorationProvider.COLLAPSED_HIGHLIGHTED_VISUAL_DECORATION : FoldingDecorationProvider.COLLAPSED_VISUAL_DECORATION);
